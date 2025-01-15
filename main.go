@@ -17,6 +17,7 @@ type Message struct {
 type Client struct {
 	conn  net.Conn
 	ipAdd string
+	name  string
 }
 
 type Server struct {
