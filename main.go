@@ -28,6 +28,18 @@ type Server struct {
 	clients    []Client
 }
 
+func (s *Server) addClient(Client Client){
+	s.clients = append(s.clients, Client)
+}
+
+func (s *Server) removeClient(client Client){
+	for i, c := range s.clients{
+		if c.ipAdd == client.ipAdd{
+			s.clients = append(s.clients[:i], s.clients[i+1:]...)
+		}
+	}
+}
+
 func NewServer(listenAddr string) *Server {
 	return &Server{
 		listenAddr: listenAddr,
@@ -61,14 +73,20 @@ func (s *Server) acceptLoop() {
 			continue
 		}
 
+		
+
 		conn.Write([]byte("Welcome to TCP-Chat!\n         _nnnn_\n        dGGGGMMb\n       @p~qp~~qMb\n       M|@||@) M|\n       @,----.JM|\n      JS^\\__/  qKL\n     dZP        qKRb\n    dZP          qKKb\n   fZP            SMMb\n   HZM            MMMM\n   FqM            MMMM\n __| \".        |\\dS\"qML\n |    `.       | `' \\Zq\n_)      \\.___.,|     .'\n\\____   )MMMMMP|   .'\n     `-'       `--'\n[ENTER YOUR NAME]:"))
 		buf := make([]byte, 2048)
 		n, err := conn.Read(buf)
 
-		name := string(buf[:n-1])
+		Name := string(buf[:n-1])
 
-		fmt.Println("New connection to the Server:", name, conn.RemoteAddr())
-		go s.readLoop(conn, name)
+		// s.clients = append(s.clients, Client{name: Name,conn: conn,ipAdd: conn.RemoteAddr().String(),})	
+		client := Client{name: Name, conn: conn, ipAdd: conn.RemoteAddr().String(),}
+		s.addClient(client)
+
+		fmt.Println("New connection to the Server:", Name, conn.RemoteAddr())
+		go s.readLoop(conn, Name)
 	}
 }
 
@@ -78,9 +96,10 @@ func (s *Server) readLoop(conn net.Conn, name string) {
 	buf := make([]byte, 2048)
 
 	for {
-		_, err := conn.Read(buf)
+		n, err := conn.Read(buf)
 		if err != nil {
-			fmt.Println("Lee has left our chat...")
+			fmt.Printf("%s has left our chat...", name)
+			// s.removeClient()
 			return
 		}
 
@@ -92,8 +111,8 @@ func (s *Server) readLoop(conn net.Conn, name string) {
 
 		// conn.Write([]byte("Thank you for your message!"))
 
-		// msg := buf[:n]
-		// fmt.Println(string(msg))
+		msg := buf[:n]
+		fmt.Println(string(msg))
 
 	}
 }
