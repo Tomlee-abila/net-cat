@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -24,18 +26,28 @@ type Server struct {
 	listenAddr string
 	ln         net.Listener
 	quitch     chan struct{}
-	msgch      chan Message
 	clients    []Client
+	messages   string
 }
 
-func (s *Server) addClient(Client Client){
+func (s *Server) addClient(Client Client) {
 	s.clients = append(s.clients, Client)
 }
 
-func (s *Server) removeClient(client Client){
-	for i, c := range s.clients{
-		if c.ipAdd == client.ipAdd{
+func (s *Server) removeClient(client Client) {
+	for i, c := range s.clients {
+		if c.ipAdd == client.ipAdd {
 			s.clients = append(s.clients[:i], s.clients[i+1:]...)
+		}
+	}
+}
+
+func (s *Server) messageClients(client Client, message string, tf string) {
+	s.messages += message
+	for _, c := range s.clients {
+		if c.ipAdd != client.ipAdd {
+			c.conn.Write([]byte(message))
+			c.conn.Write([]byte("\n" + tf + "[" + c.name + "]:"))
 		}
 	}
 }
@@ -44,7 +56,7 @@ func NewServer(listenAddr string) *Server {
 	return &Server{
 		listenAddr: listenAddr,
 		quitch:     make(chan struct{}),
-		msgch:      make(chan Message, 10),
+		messages:   "",
 	}
 }
 
@@ -61,7 +73,7 @@ func (s *Server) Start() error {
 	s.ln = ln
 
 	<-s.quitch
-	close(s.msgch)
+	// close(s.msgch)
 	return nil
 }
 
@@ -73,46 +85,62 @@ func (s *Server) acceptLoop() {
 			continue
 		}
 
-		
-
 		conn.Write([]byte("Welcome to TCP-Chat!\n         _nnnn_\n        dGGGGMMb\n       @p~qp~~qMb\n       M|@||@) M|\n       @,----.JM|\n      JS^\\__/  qKL\n     dZP        qKRb\n    dZP          qKKb\n   fZP            SMMb\n   HZM            MMMM\n   FqM            MMMM\n __| \".        |\\dS\"qML\n |    `.       | `' \\Zq\n_)      \\.___.,|     .'\n\\____   )MMMMMP|   .'\n     `-'       `--'\n[ENTER YOUR NAME]:"))
-		buf := make([]byte, 2048)
-		n, err := conn.Read(buf)
+		// buf := make([]byte, 2048)
+		// n, err := conn.Read(buf)
 
-		Name := string(buf[:n-1])
+		reader := bufio.NewReader(conn)
+		Name, err := reader.ReadString('\n')
 
-		// s.clients = append(s.clients, Client{name: Name,conn: conn,ipAdd: conn.RemoteAddr().String(),})	
-		client := Client{name: Name, conn: conn, ipAdd: conn.RemoteAddr().String(),}
+		// Name := string(buf[:n])
+		Name = strings.Replace(Name, "\r", "", -1)
+		Name = strings.Replace(Name, "\n", "", -1)
+		// fmt.Println()
+		// fmt.Print(Name[len(Name)-2])
+
+		client := Client{name: Name, conn: conn, ipAdd: conn.RemoteAddr().String()}
 		s.addClient(client)
 
-		fmt.Println("New connection to the Server:", Name, conn.RemoteAddr())
-		go s.readLoop(conn, Name)
+		conn.Write([]byte(s.messages+"\n"))
+
+		// notify all clients that there is a new client
+		t := time.Now()
+		tf := "[" + t.Format("02-01-2006 15:04:05") + "]"
+
+		s.messageClients(client, "\n"+client.name+" has joined our chat...", tf)
+
+		go s.readLoop(conn, client)
 	}
 }
 
-func (s *Server) readLoop(conn net.Conn, name string) {
+func (s *Server) readLoop(conn net.Conn, client Client) {
 	defer conn.Close()
 
 	buf := make([]byte, 2048)
 
 	for {
+		t := time.Now()
+
+		tf := "[" + t.Format("02-01-2006 15:04:05") + "]"
+
+		conn.Write([]byte(tf + "[" + client.name + "]:"))
 		n, err := conn.Read(buf)
 		if err != nil {
-			fmt.Printf("%s has left our chat...", name)
-			// s.removeClient()
+			s.messageClients(client, "\n"+client.name+" has left our chat...", tf)
+			s.removeClient(client)
 			return
 		}
 
-		s.msgch <- Message{
-			from:    conn.RemoteAddr().String(),
-			payload: buf,
-			name:    name,
+		payload := string(buf[:n])
+		payload = strings.Replace(payload, "\r", "", -1)
+		payload = strings.Replace(payload, "\n", "", -1)
+
+		message := "\n" + tf + "[" + client.name + "]:" + payload
+		fmt.Print(message)
+
+		if len(payload) > 1 {
+			s.messageClients(client, message, tf)
 		}
-
-		// conn.Write([]byte("Thank you for your message!"))
-
-		msg := buf[:n]
-		fmt.Println(string(msg))
 
 	}
 }
@@ -129,12 +157,6 @@ func main() {
 
 	server := NewServer(":" + port)
 
-	go func() {
-		for msg := range server.msgch {
-			t := time.Now()
-			fmt.Printf("[%s][%s]:%s", t.Format("02-01-2006 15:04:05"), msg.name, string(msg.payload))
-		}
-	}()
 	if err := server.Start(); err != nil {
 		// fmt.Println("err:", err)
 		port = "8989"
