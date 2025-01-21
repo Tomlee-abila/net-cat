@@ -148,6 +148,7 @@ func (s *Server) readLoop(conn net.Conn, client Client) {
 func main() {
 	if len(os.Args) > 2 {
 		fmt.Println("[USAGE]: ./TCPChat $port")
+		return
 	}
 	port := "8989"
 
