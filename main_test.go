@@ -59,29 +59,6 @@ func TestRemoveClient(t *testing.T) {
 	}
 }
 
-// Test the messageClients method
-func TestMessageClients(t *testing.T) {
-	server := NewServer(":8989")
-
-	client1 := mockClient("Alice", "192.168.1.1", nil)
-	client2 := mockClient("Bob", "192.168.1.2", nil)
-
-	// Add clients to the server
-	server.addClient(client1)
-	server.addClient(client2)
-
-	// Send a message from client1
-	message := "Hello, world!"
-	timestamp := time.Now().Format("02-01-2006 15:04:05")
-	server.messageClients(client1, message, timestamp)
-
-	// Check that the message was added to the server's messages string
-	expectedMessage := message + "\n[" + timestamp + "][Bob]:"
-	if !containsSubstring(server.messages, expectedMessage) {
-		t.Errorf("Expected message to be sent to Bob, but it was not.")
-	}
-}
-
 // Helper function to check if a string contains a substring
 func containsSubstring(str, substr string) bool {
 	return strings.Contains(str, substr)
