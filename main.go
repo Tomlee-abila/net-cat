@@ -50,6 +50,30 @@ func (s *Server) messageClients(client Client, message string, tf string) {
 			c.conn.Write([]byte("\n" + tf + "[" + c.name + "]:"))
 		}
 	}
+
+	// Create or open the log file
+	logFile, err := os.OpenFile("server_log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	if err != nil {
+		fmt.Println("Error opening log file:", err)
+		return
+	}
+	defer logFile.Close()
+
+	// Create a bufio.Writer
+	writer := bufio.NewWriter(logFile)
+
+	// Write the message to the log file
+	_, err = writer.WriteString(message)
+	if err != nil {
+		fmt.Println("Error writing to log file:", err)
+		return
+	}
+
+	// Flush the writer to ensure the data is written to the file immediately
+	err = writer.Flush()
+	if err != nil {
+		fmt.Println("Error flushing writer:", err)
+	}
 }
 
 func NewServer(listenAddr string) *Server {
@@ -101,7 +125,7 @@ func (s *Server) acceptLoop() {
 		client := Client{name: Name, conn: conn, ipAdd: conn.RemoteAddr().String()}
 		s.addClient(client)
 
-		conn.Write([]byte(s.messages+"\n"))
+		conn.Write([]byte(s.messages + "\n"))
 
 		// notify all clients that there is a new client
 		t := time.Now()
