@@ -22,12 +22,25 @@ This project is a recreation of the NetCat (nc) command-line utility in a server
 9. **Default Port**: If no port is specified, the server listens on port `8989` by default.
 10. **Empty Messages**: Empty messages are not broadcasted.
 
+## Setup
+
+1. Clone the repository:
+```
+git https://learn.zone01kisumu.ke/git/tabila/net-cat.git
+cd net-cat
+```
+
+2. Build the project:
+```
+go build -o TCPChat main.go 
+```
+
+
 ## Usage
 
 ### Start the Server
 ```bash
-$ go run .
-Listening on the port :8989
+./TCPChat
 ```
 
 ### Connect a Client
