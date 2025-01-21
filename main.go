@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,27 +25,65 @@ type Client struct {
 }
 
 type Server struct {
-	listenAddr string
-	ln         net.Listener
-	quitch     chan struct{}
-	clients    []Client
-	messages   string
+	listenAddr    string
+	ln           net.Listener
+	quitch       chan struct{}
+	clients      []Client
+	messages     string
+	maxClients   int
+	mu           sync.Mutex // Mutex for thread-safe operations
+	activeNames  map[string]bool
 }
 
-func (s *Server) addClient(Client Client) {
+func (s *Server) addClient(Client Client) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.clients) >= s.maxClients {
+		return errors.New("server is full")
+	}
+
+	if s.activeNames[Client.name] {
+		return errors.New("username already taken")
+	}
+
 	s.clients = append(s.clients, Client)
+	s.activeNames[Client.name] = true
+	return nil
 }
 
 func (s *Server) removeClient(client Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for i, c := range s.clients {
 		if c.ipAdd == client.ipAdd {
 			s.clients = append(s.clients[:i], s.clients[i+1:]...)
+			delete(s.activeNames, client.name)
+			break
 		}
 	}
 }
 
+func validateUsername(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("username cannot be empty")
+	}
+	if len(name) > 32 {
+		return errors.New("username must be 32 characters or less")
+	}
+	if strings.ContainsAny(name, "\n\r\t") {
+		return errors.New("username contains invalid characters")
+	}
+	return nil
+}
+
 func (s *Server) messageClients(client Client, message string, tf string) {
+	s.mu.Lock()
 	s.messages += message
+	s.mu.Unlock()
+
 	for _, c := range s.clients {
 		if c.ipAdd != client.ipAdd {
 			c.conn.Write([]byte(message))
@@ -78,9 +118,11 @@ func (s *Server) messageClients(client Client, message string, tf string) {
 
 func NewServer(listenAddr string) *Server {
 	return &Server{
-		listenAddr: listenAddr,
-		quitch:     make(chan struct{}),
-		messages:   "",
+		listenAddr:  listenAddr,
+		quitch:      make(chan struct{}),
+		messages:    "",
+		maxClients:  10,
+		activeNames: make(map[string]bool),
 	}
 }
 
@@ -97,7 +139,6 @@ func (s *Server) Start() error {
 	s.ln = ln
 
 	<-s.quitch
-	// close(s.msgch)
 	return nil
 }
 
@@ -110,20 +151,46 @@ func (s *Server) acceptLoop() {
 		}
 
 		conn.Write([]byte("Welcome to TCP-Chat!\n         _nnnn_\n        dGGGGMMb\n       @p~qp~~qMb\n       M|@||@) M|\n       @,----.JM|\n      JS^\\__/  qKL\n     dZP        qKRb\n    dZP          qKKb\n   fZP            SMMb\n   HZM            MMMM\n   FqM            MMMM\n __| \".        |\\dS\"qML\n |    `.       | `' \\Zq\n_)      \\.___.,|     .'\n\\____   )MMMMMP|   .'\n     `-'       `--'\n[ENTER YOUR NAME]:"))
-		// buf := make([]byte, 2048)
-		// n, err := conn.Read(buf)
 
 		reader := bufio.NewReader(conn)
-		Name, err := reader.ReadString('\n')
+		name, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading name:", err)
+			conn.Close()
+			continue
+		}
 
-		// Name := string(buf[:n])
-		Name = strings.Replace(Name, "\r", "", -1)
-		Name = strings.Replace(Name, "\n", "", -1)
-		// fmt.Println()
-		// fmt.Print(Name[len(Name)-2])
+		name = strings.Replace(name, "\r", "", -1)
+		name = strings.Replace(name, "\n", "", -1)
 
-		client := Client{name: Name, conn: conn, ipAdd: conn.RemoteAddr().String()}
-		s.addClient(client)
+		if err := validateUsername(name); err != nil {
+			conn.Write([]byte(err.Error() + "\n"))
+			conn.Close()
+			continue
+		}
+
+		s.mu.Lock()
+		if len(s.clients) >= s.maxClients {
+			s.mu.Unlock()
+			conn.Write([]byte("Server is full. Please try again later.\n"))
+			conn.Close()
+			continue
+		}
+
+		if s.activeNames[name] {
+			s.mu.Unlock()
+			conn.Write([]byte("Username already taken. Please choose another name.\n"))
+			conn.Close()
+			continue
+		}
+		s.mu.Unlock()
+
+		client := Client{name: name, conn: conn, ipAdd: conn.RemoteAddr().String()}
+		if err := s.addClient(client); err != nil {
+			conn.Write([]byte(err.Error() + "\n"))
+			conn.Close()
+			continue
+		}
 
 		conn.Write([]byte(s.messages + "\n"))
 
@@ -138,20 +205,21 @@ func (s *Server) acceptLoop() {
 }
 
 func (s *Server) readLoop(conn net.Conn, client Client) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		s.removeClient(client)
+	}()
 
 	buf := make([]byte, 2048)
 
 	for {
 		t := time.Now()
-
 		tf := "[" + t.Format("02-01-2006 15:04:05") + "]"
 
 		conn.Write([]byte(tf + "[" + client.name + "]:"))
 		n, err := conn.Read(buf)
 		if err != nil {
 			s.messageClients(client, "\n"+client.name+" has left our chat...", tf)
-			s.removeClient(client)
 			return
 		}
 
@@ -159,13 +227,18 @@ func (s *Server) readLoop(conn net.Conn, client Client) {
 		payload = strings.Replace(payload, "\r", "", -1)
 		payload = strings.Replace(payload, "\n", "", -1)
 
+		// Validate message length
+		if len(payload) > 1024 {
+			conn.Write([]byte("Message too long. Maximum length is 1024 characters.\n"))
+			continue
+		}
+
 		message := "\n" + tf + "[" + client.name + "]:" + payload
 		fmt.Print(message)
 
 		if len(payload) > 1 {
 			s.messageClients(client, message, tf)
 		}
-
 	}
 }
 
@@ -183,7 +256,6 @@ func main() {
 	server := NewServer(":" + port)
 
 	if err := server.Start(); err != nil {
-		// fmt.Println("err:", err)
 		port = "8989"
 		server = NewServer(":" + port)
 		log.Fatal(server.Start())
