@@ -1,0 +1,14 @@
+# Binaries
+TCPChat
+net-cat
+
+# Logs
+*.log
+server_log.txt
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

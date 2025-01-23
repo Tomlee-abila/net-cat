@@ -1,119 +1,110 @@
+# TCP Chat Server
 
-# Net Cat - TCP Chat Project
+A concurrent TCP chat server implementation in Go with support for multiple clients and real-time message broadcasting.
 
+## Features
 
+- Concurrent client handling with goroutines
+- Support for up to 10 simultaneous connections
+- Real-time message broadcasting
+- Username validation and uniqueness checks
+- Message history for new connections
+- Rate limiting and message size restrictions
+- Graceful shutdown handling
+- Persistent chat logging
+- Configurable port (default: 8989)
 
-## Overview
+## Requirements
 
-This project is a recreation of the NetCat (nc) command-line utility in a server-client architecture. The implementation supports server mode to listen for incoming connections on a specified port and client mode to connect to a server, enabling group chat functionality.
+- Go 1.19 or higher
 
-### Features
-1. **TCP Server-Client Connection**: Supports multiple clients connecting to a server via TCP.
-2. **Named Clients**: Each client is required to provide a name before joining the chat.
-3. **Group Chat**: Allows clients to exchange messages in a shared chat room.
-4. **Message Identification**: Messages include a timestamp and the sender's name in the format:  
-   `[YYYY-MM-DD HH:MM:SS][client.name]:[message]`.
-5. **Message History**: New clients receive the complete message history upon joining.
-6. **Connection Notifications**: 
-   - All clients are notified when a new client joins.
-   - Clients are informed when someone leaves the chat.
-7. **Connection Control**: Maximum of 10 simultaneous connections.
-8. **Error Handling**: Manages errors gracefully on both server and client sides.
-9. **Default Port**: If no port is specified, the server listens on port `8989` by default.
-10. **Empty Messages**: Empty messages are not broadcasted.
+## Building
 
-## Setup
+Use the provided Makefile:
 
-1. Clone the repository:
+```bash
+# Build the project
+make build
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
 ```
-git https://learn.zone01kisumu.ke/git/tabila/net-cat.git
-cd net-cat
-```
-
-2. Build the project:
-```
-go build -o TCPChat main.go 
-```
-
 
 ## Usage
 
-### Start the Server
 ```bash
+# Start server with default port (8989)
 ./TCPChat
+
+# Start server with custom port
+./TCPChat 2525
 ```
 
-### Connect a Client
-Use `nc` to connect to the server:
+## Client Connection
+
+Connect using netcat or any TCP client:
+
 ```bash
-$ nc <IP> <PORT>
+nc localhost 8989
 ```
 
-### Example Interaction
+## Protocol
 
-#### Client 1
+### Message Format
+Messages follow the format: `[YYYY-MM-DD HH:MM:SS][username]: message`
+
+### System Messages
+- Join notification: `[SYSTEM] username has joined our chat...`
+- Leave notification: `[SYSTEM] username has left our chat...`
+
+## Features Details
+
+### Connection Management
+- Maximum 10 concurrent clients
+- Automatic timeout after 5 minutes of inactivity
+- TCP keepalive enabled
+- Graceful connection handling
+
+### Message Controls
+- Empty messages are filtered
+- Maximum message size: 1024 bytes
+- Rate limiting: 1 message per second
+- Real-time delivery (<1s latency)
+
+### Username Rules
+- Must be non-empty
+- Maximum 32 characters
+- No newlines or tabs
+- Must be unique among active connections
+
+## Testing
+
 ```bash
-$ nc localhost 2525
-Welcome to TCP-Chat!
-         _nnnn_
-        dGGGGMMb
-       @p~qp~~qMb
-       M|@||@) M|
-       @,----.JM|
-      JS^\__/  qKL
-     dZP        qKRb
-    dZP          qKKb
-   fZP            SMMb
-   HZM            MMMM
-   FqM            MMMM
- __| ".        |\dS"qML
- |    `.       | `' \Zq
-_)      \.___.,|     .'
-\____   )MMMMMP|   .'
-     `-'       `--'
-[ENTER YOUR NAME]: Alice
-[2025-01-20 12:30:00][Alice]:Hello, everyone!
+# Run all tests
+make test
+
+# Run with race detection
+go test -race ./...
 ```
 
-#### Client 2
-```bash
-$ nc localhost 2525
-Welcome to TCP-Chat!
-         _nnnn_
-        dGGGGMMb
-       @p~qp~~qMb
-       M|@||@) M|
-       @,----.JM|
-      JS^\__/  qKL
-     dZP        qKRb
-    dZP          qKKb
-   fZP            SMMb
-   HZM            MMMM
-   FqM            MMMM
- __| ".        |\dS"qML
- |    `.       | `' \Zq
-_)      \.___.,|     .'
-\____   )MMMMMP|   .'
-     `-'       `--'
-[ENTER YOUR NAME]: Bob
-[2025-01-20 12:30:10][Bob]:Hi Alice!
-```
+## Error Handling
 
-### Error Handling
-- If a port is not provided:
-  ```bash
-  $ go run . localhost
-  [USAGE]: ./TCPChat $port
-  ```
+- Invalid port numbers
+- Connection limits
+- Username conflicts
+- Network errors
+- Resource exhaustion
 
-### Example Logs
-```plaintext
-[2025-01-20 12:30:00][Alice]:Hello, everyone!
-Bob has joined the chat.
-[2025-01-20 12:30:10][Bob]:Hi Alice!
-Alice has left the chat.
-[2025-01-20 12:35:00][Bob]:Goodbye!
-```
+## Project Structure
 
-## Contribution  
-This project was collaboratively developed by **Tabila**, **Kevwasonga**, and **Aadero**.
+- `main.go`: Core server implementation
+- `main_test.go`: Test suite
+- `Makefile`: Build and test automation
+- `server_log.txt`: Message history log
+
+## License
+
+This project is open source and available under the MIT License.
