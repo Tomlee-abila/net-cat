@@ -1,47 +1,54 @@
 package protocol
 
 import (
-	"fmt"
-	"time"
+    "fmt"
+    "time"
 )
 
-// Message represents a chat message with metadata
+const (
+    // TimestampFormat defines how timestamps should be formatted in messages
+    TimestampFormat = "2006-01-02 15:04:05"
+
+    // MaxMessageSize is the maximum allowed length of message content
+    MaxMessageSize = 1024
+
+    // MessageRateLimit is the minimum time between messages from a client
+    MessageRateLimit = time.Second
+)
+
+// Message represents a chat message
 type Message struct {
-	From      string
-	Content   string
-	Timestamp time.Time
+    From      string
+    Content   string
+    Timestamp time.Time
 }
 
 // String returns a formatted string representation of the message
 func (m Message) String() string {
-	return fmt.Sprintf("[%s][%s]:%s",
-		m.Timestamp.Format("2006-01-02 15:04:05"),
-		m.From,
-		m.Content,
-	)
+    if m.Content == "" {
+        return ""
+    }
+    return fmt.Sprintf("[%s][%s]:%s",
+        m.Timestamp.Format(TimestampFormat),
+        m.From,
+        m.Content,
+    )
 }
 
-// NewMessage creates a new message with the current timestamp
+// NewMessage creates a new message from the given sender and content
 func NewMessage(from, content string) Message {
-	return Message{
-		From:      from,
-		Content:   content,
-		Timestamp: time.Now(),
-	}
+    return Message{
+        From:      from,
+        Content:   content,
+        Timestamp: time.Now(),
+    }
 }
 
-// SystemMessage creates a new system message
+// SystemMessage creates a new system message with the given content
 func SystemMessage(content string) Message {
-	return NewMessage("SYSTEM", content)
+    return Message{
+        From:      "SYSTEM",
+        Content:   content,
+        Timestamp: time.Now(),
+    }
 }
-
-const (
-	// MaxMessageSize defines the maximum allowed message size in bytes
-	MaxMessageSize = 1024
-
-	// MessageRateLimit defines the minimum time between messages
-	MessageRateLimit = time.Second
-
-	// TimestampFormat defines the standard timestamp format for messages
-	TimestampFormat = "2006-01-02 15:04:05"
-)

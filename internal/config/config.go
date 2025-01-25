@@ -4,18 +4,21 @@ import "time"
 
 // Config holds all server configuration parameters
 type Config struct {
-// Network settings
-ListenAddr string
-MaxClients int
+	// Network settings
+	ListenAddr string
+	MaxClients int
 
-// Connection settings
-ClientTimeout time.Duration
-MessageRateLimit time.Duration
-MaxMessageSize int
+	// Connection settings
+	ClientTimeout    time.Duration
+	MessageRateLimit time.Duration
+	MaxMessageSize   int
 
-// Chat settings
-MaxNameLength int
-MaxNameChanges int
+	// Chat settings
+	MaxNameLength int
+	MaxNameChanges int
+
+	// Logging settings
+	LogFile string
 }
 
 // DefaultConfig returns a new Config instance with default values
@@ -71,4 +74,10 @@ return c
 func (c *Config) WithMaxNameChanges(changes int) *Config {
 c.MaxNameChanges = changes
 return c
+}
+
+// WithLogFile sets the log file path and returns the config
+func (c *Config) WithLogFile(path string) *Config {
+    c.LogFile = path
+    return c
 }

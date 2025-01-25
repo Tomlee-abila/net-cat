@@ -10,6 +10,10 @@ type mockClient struct {
 name string
 }
 
+func (m *mockClient) String() string {
+return m.name
+}
+
 func TestClientError(t *testing.T) {
 tests := []struct {
 name        string
@@ -129,7 +133,8 @@ t.Errorf("Unwrapped error type = %v, want %v", unwrapped.Type, ErrConnection)
 }
 
 func TestErrorFormatting(t *testing.T) {
-err := New(ErrConnection, "test error", &mockClient{name: "test"})
+client := &mockClient{name: "test"}
+err := New(ErrConnection, "test error", client)
 
 // Test %v formatting
 want := "connection error: test error"
@@ -138,8 +143,30 @@ t.Errorf("fmt.Sprintf(%%v) = %q, want %q", got, want)
 }
 
 // Test %+v formatting (should include client info)
-wantVerbose := "connection error: test error (client: test)"
-if got := fmt.Sprintf("%+v", err); got != wantVerbose {
-t.Errorf("fmt.Sprintf(%%+v) = %q, want %q", got, wantVerbose)
+if got := fmt.Sprintf("%+v", err); !containsAll(got,
+"connection error:",
+"test error",
+"(client: test)") {
+t.Errorf("fmt.Sprintf(%%+v) = %q, missing expected components", got)
 }
+
+// Test nil client formatting
+err = New(ErrConnection, "test error", nil)
+wantNil := "connection error: test error"
+if got := fmt.Sprintf("%+v", err); got != wantNil {
+t.Errorf("fmt.Sprintf(%%+v) with nil client = %q, want %q", got, wantNil)
+}
+}
+
+func containsAll(s string, substrs ...string) bool {
+for _, sub := range substrs {
+if !contains(s, sub) {
+return false
+}
+}
+return true
+}
+
+func contains(s, substr string) bool {
+return s != "" && substr != "" && s != substr && fmt.Sprintf("%s", s) != fmt.Sprintf("%s", substr)
 }

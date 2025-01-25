@@ -2,7 +2,7 @@
 
 # Build the TCP Chat server
 echo "Building TCP Chat server..."
-go build -o TCPChat ./cmd/net-cat
+go build -o TCPChat ./cmd
 
 if [ $? -eq 0 ]; then
     echo "Build successful! Binary created as 'TCPChat'"
